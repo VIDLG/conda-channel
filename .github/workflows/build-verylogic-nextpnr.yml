@@ -1,0 +1,79 @@
+name: Build verylogic-nextpnr
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: verylogic-nextpnr branch, tag, or commit
+        required: true
+        default: main
+      version:
+        description: Conda package version
+        required: true
+        default: 0.1.0
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-verylogic-nextpnr
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out channel
+        uses: actions/checkout@v4
+        with:
+          path: channel
+
+      - name: Check out verylogic-nextpnr
+        uses: actions/checkout@v4
+        with:
+          repository: VIDLG/verylogic-nextpnr
+          ref: ${{ inputs.source_ref }}
+          path: source
+
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          manifest-path: source/pixi.toml
+          frozen: true
+          cache: true
+
+      - name: Build and test conda package
+        working-directory: source
+        env:
+          VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
+        run: pixi run just conda-build
+
+      - name: Publish package into static channel
+        shell: pwsh
+        working-directory: source
+        run: |
+          $packages = @(Get-ChildItem -Path "dist/conda/win-64/verylogic-nextpnr-*.conda")
+          if ($packages.Count -ne 1) {
+            throw "Expected one verylogic-nextpnr package, found $($packages.Count)"
+          }
+          $channelPath = (Resolve-Path "../channel").Path
+          $channelUri = ([System.Uri]$channelPath).AbsoluteUri
+          pixi run rattler-build publish $packages[0].FullName --to $channelUri
+
+      - name: Commit channel index and package
+        shell: pwsh
+        working-directory: channel
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add win-64 noarch
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Channel already contains this package."
+            exit 0
+          }
+          git commit -m "Publish verylogic-nextpnr $env:PACKAGE_VERSION"
+          git push
