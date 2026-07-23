@@ -74,11 +74,13 @@ jobs:
           frozen: true
           cache: true
 
-      - name: Cache pinned IceStorm data
+      - name: Cache pinned recipe sources
         uses: actions/cache@v4
         with:
-          path: source/deps/icestorm
-          key: icestorm-${{ runner.os }}-${{ hashFiles('source/tools/prepare_ice40.py') }}
+          path: ${{ runner.temp }}/b/src_cache
+          key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/recipe/recipe.yaml') }}
+          restore-keys: |
+            recipe-sources-${{ runner.os }}-
 
       - name: Cache C++ compilation
         uses: actions/cache@v4

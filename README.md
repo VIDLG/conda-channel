@@ -45,6 +45,6 @@ channel indexes, and commits the generated package and `repodata.json` back to
 this repository. An existing package filename is never overwritten with
 different content.
 
-CI caches the locked minimal Pixi packaging environment, the pinned IceStorm
-data, conda downloads, and `sccache` compiler results. CMake build trees and
-final packages are deliberately not cached.
+CI caches the locked minimal Pixi packaging environment, pinned recipe source
+downloads (including IceStorm), conda downloads, and `sccache` compiler
+results. CMake build trees and final packages are deliberately not cached.
