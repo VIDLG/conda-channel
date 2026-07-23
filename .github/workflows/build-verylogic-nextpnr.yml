@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: verylogic-nextpnr branch, tag, or commit
+        description: verylogic-nextpnr branch, tag, or full commit SHA
         required: true
         default: main
       version:
@@ -25,12 +25,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out channel
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: channel
 
       - name: Check out verylogic-nextpnr
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: VIDLG/verylogic-nextpnr
           ref: ${{ inputs.source_ref }}
@@ -47,7 +47,7 @@ jobs:
         env:
           VERYLOGIC_CONDA_OUTPUT: D:/b
           VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
-        run: pixi exec --spec just --with cmake --with rattler-build==0.70.0 just conda-build
+        run: pixi exec --spec just --spec cmake --spec rattler-build==0.70.0 just conda-build
 
       - name: Publish package into static channel
         shell: pwsh
