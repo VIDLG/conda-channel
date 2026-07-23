@@ -86,9 +86,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/sccache
-          key: sccache-${{ runner.os }}-${{ hashFiles('source/CMakeLists.txt', 'source/common/**', 'source/ice40/**', 'source/himbaechel/**', 'source/gui/**') }}
+          key: sccache-v2-${{ runner.os }}-${{ hashFiles('source/CMakeLists.txt', 'source/common/**', 'source/ice40/**', 'source/himbaechel/**', 'source/gui/**') }}
           restore-keys: |
-            sccache-${{ runner.os }}-
+            sccache-v2-${{ runner.os }}-
 
       - name: Build and test conda package
         working-directory: source
