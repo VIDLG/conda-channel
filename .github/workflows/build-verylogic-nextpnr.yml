@@ -75,7 +75,7 @@ jobs:
           cache: true
 
       - name: Cache pinned recipe sources
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/b/src_cache
           key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/recipe/recipe.yaml') }}
@@ -83,7 +83,7 @@ jobs:
             recipe-sources-${{ runner.os }}-
 
       - name: Cache C++ compilation
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/sccache
           key: sccache-v2-${{ runner.os }}-${{ hashFiles('source/CMakeLists.txt', 'source/common/**', 'source/ice40/**', 'source/himbaechel/**', 'source/gui/**') }}
@@ -100,7 +100,7 @@ jobs:
         run: pixi run --environment conda-package just conda-build
 
       - name: Upload conda package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: verylogic-nextpnr-${{ inputs.version }}-win-64
           path: ${{ runner.temp }}/b/win-64/verylogic-nextpnr-*.conda
