@@ -6,11 +6,11 @@ on:
       source_ref:
         description: verylogic-nextpnr tag or full 40-character commit SHA
         required: true
-        default: v0.1.0
+        default: v0.1.1
       version:
         description: Conda package version
         required: true
-        default: 0.1.0
+        default: 0.1.1
       publish:
         description: Publish the tested package into the channel
         required: true
@@ -78,7 +78,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/b/src_cache
-          key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/recipe/recipe.yaml') }}
+          key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/recipe/**') }}
           restore-keys: |
             recipe-sources-${{ runner.os }}-
 
@@ -116,22 +116,40 @@ jobs:
         run: |
           $packagePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
           $packages = @(Get-ChildItem -Path $packagePattern)
-          if ($packages.Count -ne 1) {
-            throw "Expected one verylogic-nextpnr package, found $($packages.Count)"
+          if ($packages.Count -ne 2) {
+            throw "Expected two verylogic-nextpnr Python variants, found $($packages.Count)"
           }
-          $channelPath = (Resolve-Path $env:CHANNEL_ROOT).Path
-          $existingPackage = Join-Path $channelPath "win-64/$($packages[0].Name)"
-          if (Test-Path $existingPackage) {
-            $newHash = (Get-FileHash $packages[0].FullName -Algorithm SHA256).Hash
-            $existingHash = (Get-FileHash $existingPackage -Algorithm SHA256).Hash
-            if ($newHash -eq $existingHash) {
-              Write-Host "Channel already contains the identical package."
-              exit 0
+          foreach ($pythonTag in @("py312", "py313")) {
+            $matches = @($packages | Where-Object {
+              $_.Name -match "-${pythonTag}h[0-9a-f]+_\d+\.conda$"
+            })
+            if ($matches.Count -ne 1) {
+              throw "Expected exactly one $pythonTag package, found $($matches.Count)"
             }
-            throw "Refusing to replace existing package $($packages[0].Name) with different content"
           }
+
+          $channelPath = (Resolve-Path $env:CHANNEL_ROOT).Path
+          $packagePaths = @()
+          foreach ($package in $packages) {
+            $existingPackage = Join-Path $channelPath "win-64/$($package.Name)"
+            if (Test-Path $existingPackage) {
+              $newHash = (Get-FileHash $package.FullName -Algorithm SHA256).Hash
+              $existingHash = (Get-FileHash $existingPackage -Algorithm SHA256).Hash
+              if ($newHash -eq $existingHash) {
+                Write-Host "Channel already contains identical package $($package.Name)."
+                continue
+              }
+              throw "Refusing to replace existing package $($package.Name) with different content"
+            }
+            $packagePaths += $package.FullName
+          }
+          if ($packagePaths.Count -eq 0) {
+            Write-Host "Channel already contains both identical packages."
+            exit 0
+          }
+
           $channelUri = ([System.Uri]$channelPath).AbsoluteUri
-          pixi run --environment conda-package rattler-build publish $packages[0].FullName --to $channelUri
+          pixi run --environment conda-package rattler-build publish @packagePaths --to $channelUri
 
       - name: Commit channel index and package
         if: inputs.publish
