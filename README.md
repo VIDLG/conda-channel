@@ -16,15 +16,35 @@ This repository owns the publishing workflow because its built-in
 `GITHUB_TOKEN` can update the channel without a cross-repository personal
 access token.
 
-Publish an immutable source tag or full commit SHA:
+Before creating a release tag, validate the exact source commit without
+publishing it:
+
+```sh
+gh workflow run build-verylogic-nextpnr.yml \
+  --repo VIDLG/conda-channel \
+  -f source_ref="$(git rev-parse HEAD)" \
+  -f version=0.1.0 \
+  -f publish=false
+```
+
+After that candidate succeeds, create and push `v0.1.0`, then publish the
+immutable tag:
 
 ```sh
 gh workflow run build-verylogic-nextpnr.yml \
   --repo VIDLG/conda-channel \
   -f source_ref=v0.1.0 \
-  -f version=0.1.0
+  -f version=0.1.0 \
+  -f publish=true
 ```
 
-The workflow builds and tests the Windows package, publishes it under
-`win-64/`, rebuilds the channel indexes, and commits the generated package and
-`repodata.json` back to this repository.
+The workflow rejects mutable branch refs, verifies that a `vX.Y.Z` tag matches
+the requested package version, builds and tests the Windows package, uploads a
+short-lived workflow artifact, publishes it under `win-64/`, rebuilds the
+channel indexes, and commits the generated package and `repodata.json` back to
+this repository. An existing package filename is never overwritten with
+different content.
+
+CI caches the locked minimal Pixi packaging environment, the pinned IceStorm
+data, conda downloads, and `sccache` compiler results. CMake build trees and
+final packages are deliberately not cached.

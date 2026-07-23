@@ -4,13 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: verylogic-nextpnr branch, tag, or full commit SHA
+        description: verylogic-nextpnr tag or full 40-character commit SHA
         required: true
-        default: main
+        default: v0.1.0
       version:
         description: Conda package version
         required: true
         default: 0.1.0
+      publish:
+        description: Publish the tested package into the channel
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -38,20 +43,70 @@ jobs:
           ref: ${{ inputs.source_ref }}
           path: source
 
-      - name: Set up Pixi
+      - name: Validate immutable source
+        shell: pwsh
+        working-directory: source
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+          PACKAGE_VERSION: ${{ inputs.version }}
+        run: |
+          $headCommit = (git rev-parse HEAD).Trim()
+          if ($env:SOURCE_REF -match '^v(.+)$') {
+            if ($Matches[1] -ne $env:PACKAGE_VERSION) {
+              throw "Tag $env:SOURCE_REF does not match package version $env:PACKAGE_VERSION"
+            }
+            $tagCommit = (git rev-list -n 1 "refs/tags/$env:SOURCE_REF").Trim()
+            if ($tagCommit -ne $headCommit) {
+              throw "Checked-out commit does not match tag $env:SOURCE_REF"
+            }
+          } elseif ($env:SOURCE_REF -notmatch '^[0-9a-fA-F]{40}$') {
+            throw "source_ref must be a version tag or a full 40-character commit SHA"
+          } elseif ($env:SOURCE_REF -ne $headCommit) {
+            throw "Checked-out commit does not match source_ref"
+          }
+          "SOURCE_COMMIT=$headCommit" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up cached packaging environment
         uses: prefix-dev/setup-pixi@v0.10.0
         with:
-          run-install: false
-          cache: false
+          manifest-path: source/pixi.toml
+          environments: conda-package
+          frozen: true
+          cache: true
+
+      - name: Cache pinned IceStorm data
+        uses: actions/cache@v4
+        with:
+          path: source/deps/icestorm
+          key: icestorm-${{ runner.os }}-${{ hashFiles('source/tools/prepare_ice40.py') }}
+
+      - name: Cache C++ compilation
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-${{ runner.os }}-${{ hashFiles('source/CMakeLists.txt', 'source/common/**', 'source/ice40/**', 'source/himbaechel/**', 'source/gui/**') }}
+          restore-keys: |
+            sccache-${{ runner.os }}-
 
       - name: Build and test conda package
         working-directory: source
         env:
+          SCCACHE_CACHE_SIZE: 1G
+          SCCACHE_DIR: ${{ runner.temp }}/sccache
           VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
           VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
-        run: pixi exec --spec just --spec cmake --spec rattler-build==0.70.0 just conda-build
+        run: pixi run --environment conda-package just conda-build
+
+      - name: Upload conda package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: verylogic-nextpnr-${{ inputs.version }}-win-64
+          path: ${{ runner.temp }}/b/win-64/verylogic-nextpnr-*.conda
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Publish package into static channel
+        if: inputs.publish
         shell: pwsh
         working-directory: source
         env:
@@ -63,10 +118,21 @@ jobs:
             throw "Expected one verylogic-nextpnr package, found $($packages.Count)"
           }
           $channelPath = (Resolve-Path $env:CHANNEL_ROOT).Path
+          $existingPackage = Join-Path $channelPath "win-64/$($packages[0].Name)"
+          if (Test-Path $existingPackage) {
+            $newHash = (Get-FileHash $packages[0].FullName -Algorithm SHA256).Hash
+            $existingHash = (Get-FileHash $existingPackage -Algorithm SHA256).Hash
+            if ($newHash -eq $existingHash) {
+              Write-Host "Channel already contains the identical package."
+              exit 0
+            }
+            throw "Refusing to replace existing package $($packages[0].Name) with different content"
+          }
           $channelUri = ([System.Uri]$channelPath).AbsoluteUri
-          pixi exec --spec rattler-build==0.70.0 rattler-build publish $packages[0].FullName --to $channelUri
+          pixi run --environment conda-package rattler-build publish $packages[0].FullName --to $channelUri
 
       - name: Commit channel index and package
+        if: inputs.publish
         shell: pwsh
         working-directory: channel
         env:
@@ -80,5 +146,6 @@ jobs:
             Write-Host "Channel already contains this package."
             exit 0
           }
-          git commit -m "Publish verylogic-nextpnr $env:PACKAGE_VERSION"
+          $shortCommit = $env:SOURCE_COMMIT.Substring(0, 12)
+          git commit -m "Publish verylogic-nextpnr $env:PACKAGE_VERSION ($shortCommit)"
           git push
