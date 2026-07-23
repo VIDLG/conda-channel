@@ -23,6 +23,8 @@ jobs:
   build-and-publish:
     runs-on: windows-2022
     timeout-minutes: 60
+    env:
+      CHANNEL_ROOT: ${{ github.workspace }}/channel
     steps:
       - name: Check out channel
         uses: actions/checkout@v5
@@ -45,19 +47,22 @@ jobs:
       - name: Build and test conda package
         working-directory: source
         env:
-          VERYLOGIC_CONDA_OUTPUT: D:/b
+          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
           VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
         run: pixi exec --spec just --spec cmake --spec rattler-build==0.70.0 just conda-build
 
       - name: Publish package into static channel
         shell: pwsh
         working-directory: source
+        env:
+          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
         run: |
-          $packages = @(Get-ChildItem -Path "D:/b/win-64/verylogic-nextpnr-*.conda")
+          $packagePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
+          $packages = @(Get-ChildItem -Path $packagePattern)
           if ($packages.Count -ne 1) {
             throw "Expected one verylogic-nextpnr package, found $($packages.Count)"
           }
-          $channelPath = (Resolve-Path "../channel").Path
+          $channelPath = (Resolve-Path $env:CHANNEL_ROOT).Path
           $channelUri = ([System.Uri]$channelPath).AbsoluteUri
           pixi exec --spec rattler-build==0.70.0 rattler-build publish $packages[0].FullName --to $channelUri
 
