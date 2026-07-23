@@ -6,16 +6,15 @@ on:
       source_ref:
         description: verylogic-nextpnr tag or full 40-character commit SHA
         required: true
-        default: v0.1.1
       version:
         description: Conda package version
         required: true
-        default: 0.1.1
+        default: 0.1.2
       publish:
         description: Publish the tested package into the channel
         required: true
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
@@ -27,7 +26,7 @@ concurrency:
 jobs:
   build-and-publish:
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       CHANNEL_ROOT: ${{ github.workspace }}/channel
     steps:
@@ -42,6 +41,7 @@ jobs:
           repository: VIDLG/verylogic-nextpnr
           ref: ${{ inputs.source_ref }}
           path: source
+          submodules: recursive
 
       - name: Validate immutable source
         shell: pwsh
@@ -74,6 +74,18 @@ jobs:
           frozen: true
           cache: true
 
+      # The source repository's conda-build target cleans the output root, so
+      # clean it before restoring src_cache and invoke build/test separately.
+      - name: Prepare conda output
+        shell: pwsh
+        env:
+          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
+        run: |
+          if (Test-Path -LiteralPath $env:VERYLOGIC_CONDA_OUTPUT) {
+            Remove-Item -LiteralPath $env:VERYLOGIC_CONDA_OUTPUT -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $env:VERYLOGIC_CONDA_OUTPUT | Out-Null
+
       - name: Cache pinned recipe sources
         uses: actions/cache@v6
         with:
@@ -90,14 +102,48 @@ jobs:
           restore-keys: |
             sccache-v2-${{ runner.os }}-
 
-      - name: Build and test conda package
+      - name: Build conda package variants
         working-directory: source
         env:
           SCCACHE_CACHE_SIZE: 1G
           SCCACHE_DIR: ${{ runner.temp }}/sccache
           VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
           VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
-        run: pixi run --environment conda-package just conda-build
+        run: pixi run --environment conda-package rattler-build build --recipe recipe/recipe.yaml --target-platform win-64 --output-dir "$env:VERYLOGIC_CONDA_OUTPUT" --channel conda-forge --package-format conda --test skip --no-build-id
+
+      - name: Test installed conda package variants
+        working-directory: source
+        env:
+          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
+        run: pixi run --environment conda-package just conda-test
+
+      - name: Test installed package-pin Python API
+        working-directory: source
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
+        run: pixi run --environment conda-package python ../channel/.github/scripts/test_verylogic_nextpnr_package_pins.py "$env:VERYLOGIC_CONDA_OUTPUT" "$env:PACKAGE_VERSION" ../channel/.github/scripts/verylogic_nextpnr_package_pin_smoke.py
+
+      - name: Verify package artifacts
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
+        run: |
+          $packagePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
+          $packages = @(Get-ChildItem -Path $packagePattern)
+          if ($packages.Count -ne 2) {
+            throw "Expected two verylogic-nextpnr Python variants, found $($packages.Count)"
+          }
+          $escapedVersion = [regex]::Escape($env:PACKAGE_VERSION)
+          foreach ($pythonTag in @("py312", "py313")) {
+            $matches = @($packages | Where-Object {
+              $_.Name -match "^verylogic-nextpnr-${escapedVersion}-${pythonTag}h[0-9a-f]+_\d+\.conda$"
+            })
+            if ($matches.Count -ne 1) {
+              throw "Expected exactly one verylogic-nextpnr $env:PACKAGE_VERSION $pythonTag package, found $($matches.Count)"
+            }
+          }
 
       - name: Upload conda package artifact
         uses: actions/upload-artifact@v7
@@ -116,17 +162,6 @@ jobs:
         run: |
           $packagePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
           $packages = @(Get-ChildItem -Path $packagePattern)
-          if ($packages.Count -ne 2) {
-            throw "Expected two verylogic-nextpnr Python variants, found $($packages.Count)"
-          }
-          foreach ($pythonTag in @("py312", "py313")) {
-            $matches = @($packages | Where-Object {
-              $_.Name -match "-${pythonTag}h[0-9a-f]+_\d+\.conda$"
-            })
-            if ($matches.Count -ne 1) {
-              throw "Expected exactly one $pythonTag package, found $($matches.Count)"
-            }
-          }
 
           $channelPath = (Resolve-Path $env:CHANNEL_ROOT).Path
           $packagePaths = @()
