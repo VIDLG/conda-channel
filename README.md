@@ -11,14 +11,14 @@ channels = ["https://vidlg.github.io/conda-channel", "conda-forge"]
 ## Publishing `verylogic-nextpnr`
 
 The conda recipe is maintained with the source in
-[`VIDLG/verylogic-nextpnr`](https://github.com/VIDLG/verylogic-nextpnr/tree/main/recipe).
+[`VIDLG/verylogic-nextpnr`](https://github.com/VIDLG/verylogic-nextpnr/tree/main/verylogic/packaging/conda).
 This repository owns the publishing workflow because its built-in
 `GITHUB_TOKEN` can update the channel without a cross-repository personal
 access token.
 
 Before creating a release tag, validate the exact source commit without
 publishing it. The workflow deliberately has no `source_ref` default and
-defaults `publish` to false: until an immutable 0.1.2 source commit exists, do
+defaults `publish` to false: until an immutable 0.1.3 source commit exists, do
 not substitute a branch name or a placeholder SHA. Run this command from the
 `verylogic-nextpnr` checkout so `git rev-parse HEAD` resolves the source commit:
 
@@ -26,24 +26,24 @@ not substitute a branch name or a placeholder SHA. Run this command from the
 gh workflow run build-verylogic-nextpnr.yml \
   --repo VIDLG/conda-channel \
   -f source_ref="$(git rev-parse HEAD)" \
-  -f version=0.1.2 \
+  -f version=0.1.3 \
   -f publish=false
 ```
 
-The 0.1.2 source candidate must provide the new package-pin Python API. The
+The 0.1.3 source candidate must provide the new package-pin Python API.
 channel workflow runs the source repository's `conda-test` target, then installs
 each package variant and executes a channel-owned package-pin smoke with all
 three packaged architecture configurations: iCE40, Gowin, and Xilinx. It also
 verifies the resulting package filenames before uploading anything.
 
-After that candidate succeeds, create and push `v0.1.2`, then publish the
+After that candidate succeeds, create and push `v0.1.3`, then publish the
 immutable tag:
 
 ```sh
 gh workflow run build-verylogic-nextpnr.yml \
   --repo VIDLG/conda-channel \
-  -f source_ref=v0.1.2 \
-  -f version=0.1.2 \
+  -f source_ref=v0.1.3 \
+  -f version=0.1.3 \
   -f publish=true
 ```
 
