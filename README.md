@@ -18,7 +18,7 @@ access token.
 
 Before creating a release tag, validate the exact source commit without
 publishing it. The workflow deliberately has no `source_ref` default and
-defaults `publish` to false: until an immutable 0.1.3 source commit exists, do
+defaults `publish` to false: until an immutable 0.1.4 source commit exists, do
 not substitute a branch name or a placeholder SHA. Run this command from the
 `verylogic-nextpnr` checkout so `git rev-parse HEAD` resolves the source commit:
 
@@ -26,24 +26,26 @@ not substitute a branch name or a placeholder SHA. Run this command from the
 gh workflow run build-verylogic-nextpnr.yml \
   --repo VIDLG/conda-channel \
   -f source_ref="$(git rev-parse HEAD)" \
-  -f version=0.1.3 \
+  -f version=0.1.4 \
   -f publish=false
 ```
 
-The 0.1.3 source candidate must provide the new package-pin Python API.
-channel workflow runs the source repository's `conda-test` target, then installs
-each package variant and executes a channel-owned package-pin smoke with all
-three packaged architecture configurations: iCE40, Gowin, and Xilinx. It also
-verifies the resulting package filenames before uploading anything.
+The 0.1.4 source candidate must provide the direct target-identity and
+package-pin Python APIs. The channel workflow runs the source repository's
+`conda-test` target, then installs each package variant and executes a
+channel-owned smoke against iCE40 LP384, iCE40 UP5K, Gowin, and Xilinx. The
+smoke checks exact architecture, runtime device selector, resolved package,
+optional Himbächel uarch, and bidirectional package-pin lookup before any
+artifact is uploaded.
 
-After that candidate succeeds, create and push `v0.1.3`, then publish the
+After that candidate succeeds, create and push `v0.1.4`, then publish the
 immutable tag:
 
 ```sh
 gh workflow run build-verylogic-nextpnr.yml \
   --repo VIDLG/conda-channel \
-  -f source_ref=v0.1.3 \
-  -f version=0.1.3 \
+  -f source_ref=v0.1.4 \
+  -f version=0.1.4 \
   -f publish=true
 ```
 

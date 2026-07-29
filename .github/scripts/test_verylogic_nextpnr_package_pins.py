@@ -13,6 +13,31 @@ EXPECTED_PYTHON_VERSIONS = {"3.12", "3.13"}
 PACKAGE_PATTERN = re.compile(
     r"^verylogic-nextpnr-(?P<version>.+)-py(?P<python>\d+)h[0-9a-f]+_\d+\.conda$"
 )
+TARGET_COMMANDS = (
+    ("nextpnr-ice40", "--lp384", "--package", "qn32"),
+    ("nextpnr-ice40", "--lp1k", "--package", "tq144"),
+    ("nextpnr-ice40", "--lp4k", "--package", "tq144"),
+    ("nextpnr-ice40", "--lp8k", "--package", "ct256"),
+    ("nextpnr-ice40", "--hx1k", "--package", "tq144"),
+    ("nextpnr-ice40", "--hx4k", "--package", "tq144"),
+    ("nextpnr-ice40", "--hx8k", "--package", "ct256"),
+    ("nextpnr-ice40", "--up3k", "--package", "sg48"),
+    ("nextpnr-ice40", "--up5k", "--package", "sg48"),
+    ("nextpnr-ice40", "--u1k", "--package", "sg48"),
+    ("nextpnr-ice40", "--u2k", "--package", "sg48"),
+    ("nextpnr-ice40", "--u4k", "--package", "sg48"),
+    ("nextpnr-himbaechel", "--device", "GW1N-LV1QN48C6/I5"),
+    ("nextpnr-himbaechel", "--device", "GW1NZ-LV1CG25C5/I4"),
+    ("nextpnr-himbaechel", "--device", "GW1N-LV4CS72C5/I4"),
+    ("nextpnr-himbaechel", "--device", "GW1N-LV9CM64C6/I5", "--vopt", "family=GW1N-9"),
+    ("nextpnr-himbaechel", "--device", "GW1N-LV9CM64C7/I6", "--vopt", "family=GW1N-9C"),
+    ("nextpnr-himbaechel", "--device", "GW1NSR-LV4CMG64PC6/I5"),
+    ("nextpnr-himbaechel", "--device", "GW2A-LV18EQ144C7/I6", "--vopt", "family=GW2A-18"),
+    ("nextpnr-himbaechel", "--device", "GW2AR-LV18EQ176C8/I7", "--vopt", "family=GW2A-18C"),
+    ("nextpnr-himbaechel", "--device", "GW5A-LV25LQ100C1/I0"),
+    ("nextpnr-himbaechel", "--device", "GW5AST-LV138FPG676AC1/I0"),
+    ("nextpnr-himbaechel", "--device", "xc7a100tcsg324-1"),
+)
 
 
 def find_variants(output_dir: Path, expected_version: str) -> dict[str, Path]:
@@ -65,28 +90,7 @@ def main() -> None:
     )
 
     backend_commands = [
-        [
-            "nextpnr-ice40",
-            "--lp384",
-            "--package",
-            "qn32",
-            "--run",
-            str(smoke_script),
-        ],
-        [
-            "nextpnr-himbaechel",
-            "--device",
-            "GW1N-LV1QN48C6/I5",
-            "--run",
-            str(smoke_script),
-        ],
-        [
-            "nextpnr-himbaechel",
-            "--device",
-            "xc7a100tcsg324-1",
-            "--run",
-            str(smoke_script),
-        ],
+        [*target, "--run", str(smoke_script)] for target in TARGET_COMMANDS
     ]
     smoke_command = " && ".join(
         subprocess.list2cmdline(command) for command in backend_commands
