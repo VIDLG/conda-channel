@@ -57,7 +57,7 @@ jobs:
           - python: "3.13"
             tag: py313
     env:
-      VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
+      VERYLOGIC_CONDA_OUTPUT: ${{ github.workspace }}/b
 
     steps:
       - name: Check out verylogic-nextpnr
@@ -111,7 +111,7 @@ jobs:
       - name: Cache pinned recipe sources
         uses: actions/cache@v6
         with:
-          path: ${{ runner.temp }}/b/src_cache
+          path: ${{ env.VERYLOGIC_CONDA_OUTPUT }}/src_cache
           key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/verylogic/packaging/conda/**') }}
           restore-keys: |
             recipe-sources-${{ runner.os }}-
@@ -152,7 +152,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: verylogic-nextpnr-${{ inputs.version }}-${{ matrix.tag }}-win-64
-          path: ${{ runner.temp }}/b/win-64/verylogic-nextpnr-*.conda
+          path: ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-nextpnr-*.conda
           if-no-files-found: error
           retention-days: 14
 
@@ -163,7 +163,7 @@ jobs:
     timeout-minutes: 60
     env:
       CHANNEL_ROOT: ${{ github.workspace }}/channel
-      VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
+      VERYLOGIC_CONDA_OUTPUT: ${{ github.workspace }}/b
 
     steps:
       - name: Check out channel
@@ -222,7 +222,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: verylogic-nextpnr-${{ inputs.version }}-*-win-64
-          path: ${{ runner.temp }}/b/win-64
+          path: ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64
           merge-multiple: true
 
       - name: Test installed conda package variants
@@ -259,7 +259,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: verylogic-nextpnr-${{ inputs.version }}-win-64
-          path: ${{ runner.temp }}/b/win-64/verylogic-nextpnr-*.conda
+          path: ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-nextpnr-*.conda
           if-no-files-found: error
           retention-days: 14
 

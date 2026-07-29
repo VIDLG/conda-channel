@@ -26,6 +26,8 @@ def main() -> None:
 
     build = mapping(jobs["build"], "build job")
     assert build.get("needs") == "validate"
+    build_env = mapping(build.get("env"), "build env")
+    assert build_env.get("VERYLOGIC_CONDA_OUTPUT") == "${{ github.workspace }}/b"
     strategy = mapping(build.get("strategy"), "build strategy")
     matrix = mapping(strategy.get("matrix"), "build matrix")
     include = matrix.get("include")
@@ -40,6 +42,8 @@ def main() -> None:
 
     test_and_publish = mapping(jobs["test-and-publish"], "test-and-publish job")
     assert test_and_publish.get("needs") == "build"
+    test_env = mapping(test_and_publish.get("env"), "test-and-publish env")
+    assert test_env.get("VERYLOGIC_CONDA_OUTPUT") == "${{ github.workspace }}/b"
 
     source = WORKFLOW.read_text(encoding="utf-8")
     assert '--ignore-recipe-variants --variant "python=${{ matrix.python }}"' in source
