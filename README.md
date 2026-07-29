@@ -16,6 +16,13 @@ This repository owns the publishing workflow because its built-in
 `GITHUB_TOKEN` can update the channel without a cross-repository personal
 access token.
 
+Validate workflow structure through the channel's locked Pixi environment:
+
+```sh
+pixi install --locked
+pixi run python .github/scripts/validate_verylogic_nextpnr_workflow.py
+```
+
 Before creating a release tag, validate the exact source commit without
 publishing it. The workflow deliberately has no `source_ref` default and
 defaults `publish` to false: until an immutable 0.1.4 source commit exists, do
@@ -31,12 +38,12 @@ gh workflow run build-verylogic-nextpnr.yml \
 ```
 
 The 0.1.4 source candidate must provide the direct target-identity and
-package-pin Python APIs. The channel workflow runs the source repository's
-`conda-test` target, then installs each package variant and executes a
-channel-owned smoke against iCE40 LP384, iCE40 UP5K, Gowin, and Xilinx. The
-smoke checks exact architecture, runtime device selector, resolved package,
-optional Himbächel uarch, and bidirectional package-pin lookup before any
-artifact is uploaded.
+package-pin Python APIs. The workflow builds the `py312` and `py313` variants
+in parallel, then runs the source repository's `conda-test` target against the
+combined artifacts. Both Python ABIs exercise every runtime target through the
+embedded API; one ABI additionally runs each distinct chipdb integrity check
+with bounded parallelism. A channel-owned smoke independently checks iCE40
+LP384/UP5K, small and large Gowin packages, and Xilinx before publication.
 
 After that candidate succeeds, create and push `v0.1.4`, then publish the
 immutable tag:
@@ -50,16 +57,19 @@ gh workflow run build-verylogic-nextpnr.yml \
 ```
 
 The workflow rejects mutable branch refs, verifies that a `vX.Y.Z` tag matches
-the requested package version, builds and installs both `py312` and `py313`
-Windows variants, and checks that exactly those two versioned artifacts exist.
-It then uploads a short-lived workflow artifact and, when requested, publishes
+the requested package version, builds the `py312` and `py313` Windows variants
+in parallel, installs both, and checks that exactly those two versioned
+artifacts exist. Expensive chipdb integrity checks run once per distinct
+database; target-identity and Python API smoke tests still run against both
+Python ABIs. It then uploads a short-lived workflow artifact and, when
+requested, publishes
 the packages under `win-64/`, rebuilds the channel indexes, and commits the
 generated package and `repodata.json` back to this repository. An existing
 package filename is never overwritten with different content.
 
 CI caches the locked minimal Pixi packaging environment, pinned recipe source
-downloads, conda downloads, and `sccache` compiler results. IceStorm, Apycula,
-and Project X-Ray data are pinned Git submodules checked out with the source.
-Output cleanup happens before the recipe source cache is restored, so the build
-can actually reuse it. CMake build trees and final packages are deliberately
-not cached.
+downloads, conda downloads, and per-Python-ABI `sccache` compiler results.
+IceStorm, Apycula, and Project X-Ray data are pinned Git submodules checked out
+with each parallel source build. Output cleanup happens before the recipe
+source cache is restored, so the build can actually reuse it. CMake build trees
+and final packages are deliberately not cached.

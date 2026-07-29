@@ -97,12 +97,17 @@ assert package_pins
 assert all(isinstance(pin, str) and pin for pin in package_pins)
 assert len(package_pins) == len(set(package_pins))
 
+bonded_io_pins = 0
 for pin in package_pins:
     bel = context.getPackagePinBel(pin)
+    if bel is None:
+        continue
     assert isinstance(bel, str) and bel
     assert context.getBelPackagePin(bel) == pin
+    bonded_io_pins += 1
 
+assert bonded_io_pins > 0
 assert context.getPackagePinBel("__nextpnr_unknown_package_pin__") is None
 target = f"{architecture}/{device}/{package}"
-pin_count = len(package_pins)
-print(f"target identity and package-pin smoke passed: {target}, uarch={uarch}, pins={pin_count}")
+pin_summary = f"{bonded_io_pins}/{len(package_pins)}"
+print(f"target identity and package-pin smoke passed: {target}, uarch={uarch}, bonded={pin_summary}")

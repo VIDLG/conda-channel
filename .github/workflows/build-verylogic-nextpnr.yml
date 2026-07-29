@@ -24,11 +24,147 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-publish:
+  validate:
+    name: Validate workflow
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 10
+    steps:
+      - name: Check out channel
+        uses: actions/checkout@v5
+
+      - name: Set up validation environment
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          manifest-path: pixi.toml
+          environments: default
+          frozen: true
+          cache: true
+
+      - name: Validate publishing workflow
+        run: pixi run python .github/scripts/validate_verylogic_nextpnr_workflow.py
+
+  build:
+    name: Build Python ${{ matrix.python }}
+    needs: validate
+    runs-on: windows-2022
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: "3.12"
+            tag: py312
+          - python: "3.13"
+            tag: py313
+    env:
+      VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
+
+    steps:
+      - name: Check out verylogic-nextpnr
+        uses: actions/checkout@v5
+        with:
+          repository: VIDLG/verylogic-nextpnr
+          ref: ${{ inputs.source_ref }}
+          path: source
+          submodules: recursive
+
+      - name: Validate immutable source
+        shell: pwsh
+        working-directory: source
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+          PACKAGE_VERSION: ${{ inputs.version }}
+        run: |
+          $headCommit = (git rev-parse HEAD).Trim()
+          if ($env:SOURCE_REF -match '^v(.+)$') {
+            if ($Matches[1] -ne $env:PACKAGE_VERSION) {
+              throw "Tag $env:SOURCE_REF does not match package version $env:PACKAGE_VERSION"
+            }
+            $tagCommit = (git rev-list -n 1 "refs/tags/$env:SOURCE_REF").Trim()
+            if ($tagCommit -ne $headCommit) {
+              throw "Checked-out commit does not match tag $env:SOURCE_REF"
+            }
+          } elseif ($env:SOURCE_REF -notmatch '^[0-9a-fA-F]{40}$') {
+            throw "source_ref must be a version tag or a full 40-character commit SHA"
+          } elseif ($env:SOURCE_REF -ne $headCommit) {
+            throw "Checked-out commit does not match source_ref"
+          }
+
+      - name: Set up cached packaging environment
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          manifest-path: source/pixi.toml
+          environments: conda-package
+          frozen: true
+          cache: true
+
+      # The recipe build owns its output root. Clean it before restoring source
+      # downloads so the cache remains reusable without preserving build trees.
+      - name: Prepare conda output
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath $env:VERYLOGIC_CONDA_OUTPUT) {
+            Remove-Item -LiteralPath $env:VERYLOGIC_CONDA_OUTPUT -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $env:VERYLOGIC_CONDA_OUTPUT | Out-Null
+
+      - name: Cache pinned recipe sources
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/b/src_cache
+          key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/verylogic/packaging/conda/**') }}
+          restore-keys: |
+            recipe-sources-${{ runner.os }}-
+
+      - name: Cache C++ compilation
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-v3-${{ runner.os }}-${{ matrix.tag }}-${{ hashFiles('source/CMakeLists.txt', 'source/common/**', 'source/ice40/**', 'source/himbaechel/**', 'source/gui/**') }}
+          restore-keys: |
+            sccache-v3-${{ runner.os }}-${{ matrix.tag }}-
+            sccache-v2-${{ runner.os }}-
+
+      - name: Build conda package
+        working-directory: source
+        env:
+          SCCACHE_CACHE_SIZE: 1G
+          SCCACHE_DIR: ${{ runner.temp }}/sccache
+          VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
+        run: pixi run --environment conda-package rattler-build build --recipe verylogic/packaging/conda/recipe.yaml --ignore-recipe-variants --variant "python=${{ matrix.python }}" --target-platform win-64 --output-dir "$env:VERYLOGIC_CONDA_OUTPUT" --channel conda-forge --package-format conda --test skip --no-build-id
+
+      - name: Verify package artifact
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+          PYTHON_TAG: ${{ matrix.tag }}
+        run: |
+          $escapedVersion = [regex]::Escape($env:PACKAGE_VERSION)
+          $pattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
+          $packages = @(Get-ChildItem -Path $pattern | Where-Object {
+            $_.Name -match "^verylogic-nextpnr-${escapedVersion}-$($env:PYTHON_TAG)h[0-9a-f]+_\d+\.conda$"
+          })
+          if ($packages.Count -ne 1) {
+            throw "Expected one $env:PYTHON_TAG package, found $($packages.Count)"
+          }
+
+      - name: Upload package variant
+        uses: actions/upload-artifact@v7
+        with:
+          name: verylogic-nextpnr-${{ inputs.version }}-${{ matrix.tag }}-win-64
+          path: ${{ runner.temp }}/b/win-64/verylogic-nextpnr-*.conda
+          if-no-files-found: error
+          retention-days: 14
+
+  test-and-publish:
+    name: Test and publish
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 60
     env:
       CHANNEL_ROOT: ${{ github.workspace }}/channel
+      VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
+
     steps:
       - name: Check out channel
         uses: actions/checkout@v5
@@ -74,61 +210,35 @@ jobs:
           frozen: true
           cache: true
 
-      # The source repository's conda-build target cleans the output root, so
-      # clean it before restoring src_cache and invoke build/test separately.
-      - name: Prepare conda output
+      - name: Prepare combined package output
         shell: pwsh
-        env:
-          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
         run: |
           if (Test-Path -LiteralPath $env:VERYLOGIC_CONDA_OUTPUT) {
             Remove-Item -LiteralPath $env:VERYLOGIC_CONDA_OUTPUT -Recurse -Force
           }
-          New-Item -ItemType Directory -Path $env:VERYLOGIC_CONDA_OUTPUT | Out-Null
+          New-Item -ItemType Directory -Path "$env:VERYLOGIC_CONDA_OUTPUT/win-64" | Out-Null
 
-      - name: Cache pinned recipe sources
-        uses: actions/cache@v6
+      - name: Download package variants
+        uses: actions/download-artifact@v8
         with:
-          path: ${{ runner.temp }}/b/src_cache
-          key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/verylogic/packaging/conda/**') }}
-          restore-keys: |
-            recipe-sources-${{ runner.os }}-
-
-      - name: Cache C++ compilation
-        uses: actions/cache@v6
-        with:
-          path: ${{ runner.temp }}/sccache
-          key: sccache-v2-${{ runner.os }}-${{ hashFiles('source/CMakeLists.txt', 'source/common/**', 'source/ice40/**', 'source/himbaechel/**', 'source/gui/**') }}
-          restore-keys: |
-            sccache-v2-${{ runner.os }}-
-
-      - name: Build conda package variants
-        working-directory: source
-        env:
-          SCCACHE_CACHE_SIZE: 1G
-          SCCACHE_DIR: ${{ runner.temp }}/sccache
-          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
-          VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
-        run: pixi run --environment conda-package rattler-build build --recipe verylogic/packaging/conda/recipe.yaml --target-platform win-64 --output-dir "$env:VERYLOGIC_CONDA_OUTPUT" --channel conda-forge --package-format conda --test skip --no-build-id
+          pattern: verylogic-nextpnr-${{ inputs.version }}-*-win-64
+          path: ${{ runner.temp }}/b/win-64
+          merge-multiple: true
 
       - name: Test installed conda package variants
         working-directory: source
-        env:
-          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
         run: pixi run --environment conda-package just conda-test
 
       - name: Test installed package-pin Python API
         working-directory: source
         env:
           PACKAGE_VERSION: ${{ inputs.version }}
-          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
         run: pixi run --environment conda-package python ../channel/.github/scripts/test_verylogic_nextpnr_package_pins.py "$env:VERYLOGIC_CONDA_OUTPUT" "$env:PACKAGE_VERSION" ../channel/.github/scripts/verylogic_nextpnr_package_pin_smoke.py
 
-      - name: Verify package artifacts
+      - name: Verify combined package artifacts
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ inputs.version }}
-          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
         run: |
           $packagePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
           $packages = @(Get-ChildItem -Path $packagePattern)
@@ -145,7 +255,7 @@ jobs:
             }
           }
 
-      - name: Upload conda package artifact
+      - name: Upload tested package set
         uses: actions/upload-artifact@v7
         with:
           name: verylogic-nextpnr-${{ inputs.version }}-win-64
@@ -157,8 +267,6 @@ jobs:
         if: inputs.publish
         shell: pwsh
         working-directory: source
-        env:
-          VERYLOGIC_CONDA_OUTPUT: ${{ runner.temp }}/b
         run: |
           $packagePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
           $packages = @(Get-ChildItem -Path $packagePattern)

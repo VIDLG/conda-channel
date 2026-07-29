@@ -15,27 +15,9 @@ PACKAGE_PATTERN = re.compile(
 )
 TARGET_COMMANDS = (
     ("nextpnr-ice40", "--lp384", "--package", "qn32"),
-    ("nextpnr-ice40", "--lp1k", "--package", "tq144"),
-    ("nextpnr-ice40", "--lp4k", "--package", "tq144"),
-    ("nextpnr-ice40", "--lp8k", "--package", "ct256"),
-    ("nextpnr-ice40", "--hx1k", "--package", "tq144"),
-    ("nextpnr-ice40", "--hx4k", "--package", "tq144"),
-    ("nextpnr-ice40", "--hx8k", "--package", "ct256"),
-    ("nextpnr-ice40", "--up3k", "--package", "sg48"),
     ("nextpnr-ice40", "--up5k", "--package", "sg48"),
-    ("nextpnr-ice40", "--u1k", "--package", "sg48"),
-    ("nextpnr-ice40", "--u2k", "--package", "sg48"),
-    ("nextpnr-ice40", "--u4k", "--package", "sg48"),
     ("nextpnr-himbaechel", "--device", "GW1N-LV1QN48C6/I5"),
-    ("nextpnr-himbaechel", "--device", "GW1NZ-LV1CG25C5/I4"),
-    ("nextpnr-himbaechel", "--device", "GW1N-LV4CS72C5/I4"),
-    ("nextpnr-himbaechel", "--device", "GW1N-LV9CM64C6/I5", "--vopt", "family=GW1N-9"),
-    ("nextpnr-himbaechel", "--device", "GW1N-LV9CM64C7/I6", "--vopt", "family=GW1N-9C"),
-    ("nextpnr-himbaechel", "--device", "GW1NSR-LV4CMG64PC6/I5"),
-    ("nextpnr-himbaechel", "--device", "GW2A-LV18EQ144C7/I6", "--vopt", "family=GW2A-18"),
-    ("nextpnr-himbaechel", "--device", "GW2AR-LV18EQ176C8/I7", "--vopt", "family=GW2A-18C"),
     ("nextpnr-himbaechel", "--device", "GW5A-LV25LQ100C1/I0"),
-    ("nextpnr-himbaechel", "--device", "GW5AST-LV138FPG676AC1/I0"),
     ("nextpnr-himbaechel", "--device", "xc7a100tcsg324-1"),
 )
 
