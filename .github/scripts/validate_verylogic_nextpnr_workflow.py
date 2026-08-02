@@ -46,7 +46,7 @@ def main() -> None:
     assert test_env.get("VERYLOGIC_CONDA_OUTPUT") == "D:\\b"
 
     source = WORKFLOW.read_text(encoding="utf-8")
-    assert '--ignore-recipe-variants --variant "python=${{ matrix.python }}"' in source
+    assert "pixi run --manifest pixi.toml --environment conda-package just conda-build ${{ matrix.python }}" in source
     assert "uses: actions/download-artifact@v8" in source
     assert "merge-multiple: true" in source
     assert "pixi run --environment conda-package just conda-test" in source

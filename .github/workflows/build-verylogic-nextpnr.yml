@@ -139,12 +139,12 @@ jobs:
             sccache-v2-${{ runner.os }}-
 
       - name: Build conda package
-        working-directory: source
+        working-directory: source/downstream
         env:
           SCCACHE_CACHE_SIZE: 1G
           SCCACHE_DIR: ${{ runner.temp }}/sccache
           VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
-        run: pixi run --manifest-path downstream/pixi.toml --environment conda-package rattler-build build --recipe downstream/packaging/conda/recipe.yaml --ignore-recipe-variants --variant "python=${{ matrix.python }}" --target-platform win-64 --output-dir "$env:VERYLOGIC_CONDA_OUTPUT" --channel conda-forge --package-format conda --test skip --no-build-id
+        run: pixi run --manifest pixi.toml --environment conda-package just conda-build ${{ matrix.python }}
 
       - name: Verify package artifact
         shell: pwsh
