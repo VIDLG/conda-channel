@@ -144,7 +144,7 @@ jobs:
           SCCACHE_CACHE_SIZE: 1G
           SCCACHE_DIR: ${{ runner.temp }}/sccache
           VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
-        run: pixi run --manifest pixi.toml --environment conda-package just conda-build ${{ matrix.python }}
+        run: pixi run --manifest-path pixi.toml --environment conda-package just conda-build ${{ matrix.python }}
 
       - name: Verify package artifact
         shell: pwsh
