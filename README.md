@@ -11,7 +11,7 @@ channels = ["https://vidlg.github.io/conda-channel", "conda-forge"]
 ## Publishing `verylogic-nextpnr`
 
 The conda recipe is maintained with the source in
-[`VIDLG/verylogic-nextpnr`](https://github.com/VIDLG/verylogic-nextpnr/tree/main/verylogic/packaging/conda).
+[`VIDLG/verylogic-nextpnr`](https://github.com/VIDLG/verylogic-nextpnr/tree/main/downstream/packaging/conda).
 This repository owns the publishing workflow because its built-in
 `GITHUB_TOKEN` can update the channel without a cross-repository personal
 access token.
@@ -25,7 +25,7 @@ pixi run python .github/scripts/validate_verylogic_nextpnr_workflow.py
 
 Before creating a release tag, validate the exact source commit without
 publishing it. The workflow deliberately has no `source_ref` default and
-defaults `publish` to false: until an immutable 0.1.4 source commit exists, do
+defaults `publish` to false: until an immutable 0.1.5 source commit exists, do
 not substitute a branch name or a placeholder SHA. Run this command from the
 `verylogic-nextpnr` checkout so `git rev-parse HEAD` resolves the source commit:
 
@@ -33,11 +33,11 @@ not substitute a branch name or a placeholder SHA. Run this command from the
 gh workflow run build-verylogic-nextpnr.yml \
   --repo VIDLG/conda-channel \
   -f source_ref="$(git rev-parse HEAD)" \
-  -f version=0.1.4 \
+  -f version=0.1.5 \
   -f publish=false
 ```
 
-The 0.1.4 source candidate must provide the direct target-identity and
+The 0.1.5 source candidate must provide the direct target-identity and
 package-pin Python APIs. The workflow builds the `py312` and `py313` variants
 in parallel, then runs the source repository's `conda-test` target against the
 combined artifacts. Both Python ABIs exercise every runtime target through the
@@ -45,14 +45,14 @@ embedded API; one ABI additionally runs each distinct chipdb integrity check
 with bounded parallelism. A channel-owned smoke independently checks iCE40
 LP384/UP5K, small and large Gowin packages, and Xilinx before publication.
 
-After that candidate succeeds, create and push `v0.1.4`, then publish the
+After that candidate succeeds, create and push `v0.1.5`, then publish the
 immutable tag:
 
 ```sh
 gh workflow run build-verylogic-nextpnr.yml \
   --repo VIDLG/conda-channel \
-  -f source_ref=v0.1.4 \
-  -f version=0.1.4 \
+  -f source_ref=v0.1.5 \
+  -f version=0.1.5 \
   -f publish=true
 ```
 

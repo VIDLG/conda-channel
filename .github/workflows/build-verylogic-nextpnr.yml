@@ -9,7 +9,7 @@ on:
       version:
         description: Conda package version
         required: true
-        default: 0.1.4
+        default: 0.1.5
       publish:
         description: Publish the tested package into the channel
         required: true
@@ -93,7 +93,7 @@ jobs:
       - name: Set up cached packaging environment
         uses: prefix-dev/setup-pixi@v0.10.0
         with:
-          manifest-path: source/pixi.toml
+          manifest-path: source/downstream/pixi.toml
           environments: conda-package
           frozen: true
           cache: true
@@ -112,7 +112,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ env.VERYLOGIC_CONDA_OUTPUT }}/src_cache
-          key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/verylogic/packaging/conda/**') }}
+          key: recipe-sources-${{ runner.os }}-${{ hashFiles('source/downstream/packaging/conda/**') }}
           restore-keys: |
             recipe-sources-${{ runner.os }}-
 
@@ -120,8 +120,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/sccache
-          key: sccache-v3-${{ runner.os }}-${{ matrix.tag }}-${{ hashFiles('source/CMakeLists.txt', 'source/common/**', 'source/ice40/**', 'source/himbaechel/**', 'source/gui/**') }}
+          key: sccache-v4-${{ runner.os }}-${{ matrix.tag }}-${{ hashFiles('source/CMakeLists.txt', 'source/cmake/**', 'source/common/**', 'source/ice40/**', 'source/ecp5/**', 'source/himbaechel/**', 'source/downstream/**', 'source/3rdparty/**') }}
           restore-keys: |
+            sccache-v4-${{ runner.os }}-${{ matrix.tag }}-
             sccache-v3-${{ runner.os }}-${{ matrix.tag }}-
             sccache-v2-${{ runner.os }}-
 
@@ -131,7 +132,7 @@ jobs:
           SCCACHE_CACHE_SIZE: 1G
           SCCACHE_DIR: ${{ runner.temp }}/sccache
           VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
-        run: pixi run --environment conda-package rattler-build build --recipe verylogic/packaging/conda/recipe.yaml --ignore-recipe-variants --variant "python=${{ matrix.python }}" --target-platform win-64 --output-dir "$env:VERYLOGIC_CONDA_OUTPUT" --channel conda-forge --package-format conda --test skip --no-build-id
+        run: pixi run --manifest-path downstream/pixi.toml --environment conda-package rattler-build build --recipe downstream/packaging/conda/recipe.yaml --ignore-recipe-variants --variant "python=${{ matrix.python }}" --target-platform win-64 --output-dir "$env:VERYLOGIC_CONDA_OUTPUT" --channel conda-forge --package-format conda --test skip --no-build-id
 
       - name: Verify package artifact
         shell: pwsh
@@ -205,7 +206,7 @@ jobs:
       - name: Set up cached packaging environment
         uses: prefix-dev/setup-pixi@v0.10.0
         with:
-          manifest-path: source/pixi.toml
+          manifest-path: source/downstream/pixi.toml
           environments: conda-package
           frozen: true
           cache: true
@@ -226,14 +227,14 @@ jobs:
           merge-multiple: true
 
       - name: Test installed conda package variants
-        working-directory: source
+        working-directory: source/downstream
         run: pixi run --environment conda-package just conda-test
 
       - name: Test installed package-pin Python API
         working-directory: source
         env:
           PACKAGE_VERSION: ${{ inputs.version }}
-        run: pixi run --environment conda-package python ../channel/.github/scripts/test_verylogic_nextpnr_package_pins.py "$env:VERYLOGIC_CONDA_OUTPUT" "$env:PACKAGE_VERSION" ../channel/.github/scripts/verylogic_nextpnr_package_pin_smoke.py
+        run: pixi run --manifest-path downstream/pixi.toml --environment conda-package python ../channel/.github/scripts/test_verylogic_nextpnr_package_pins.py "$env:VERYLOGIC_CONDA_OUTPUT" "$env:PACKAGE_VERSION" ../channel/.github/scripts/verylogic_nextpnr_package_pin_smoke.py
 
       - name: Verify combined package artifacts
         shell: pwsh
