@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: verylogic-nextpnr tag or full 40-character commit SHA
+        description: Version tag, or a full 40-character main commit SHA for candidate validation
         required: true
       version:
         description: Conda package version
@@ -43,6 +43,17 @@ jobs:
       - name: Validate publishing workflow
         run: pixi run python .github/scripts/validate_verylogic_nextpnr_workflow.py
 
+      - name: Validate requested release
+        shell: pwsh
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+          PACKAGE_VERSION: ${{ inputs.version }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          if ($env:PUBLISH -eq "true" -and $env:SOURCE_REF -ne "v$env:PACKAGE_VERSION") {
+            throw "publish=true requires source_ref v$env:PACKAGE_VERSION"
+          }
+
   build:
     name: Build Python ${{ matrix.python }}
     needs: validate
@@ -64,7 +75,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: VIDLG/verylogic-nextpnr
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ startsWith(inputs.source_ref, 'v') && inputs.source_ref || 'main' }}
           path: source
           submodules: recursive
 
@@ -176,7 +187,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: VIDLG/verylogic-nextpnr
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ startsWith(inputs.source_ref, 'v') && inputs.source_ref || 'main' }}
           path: source
           submodules: recursive
 

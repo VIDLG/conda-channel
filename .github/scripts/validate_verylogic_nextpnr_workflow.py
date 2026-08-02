@@ -51,6 +51,8 @@ def main() -> None:
     assert "merge-multiple: true" in source
     assert "pixi run --environment conda-package just conda-test" in source
     assert "if: inputs.publish" in source
+    assert "publish=true requires source_ref v$env:PACKAGE_VERSION" in source
+    assert "startsWith(inputs.source_ref, 'v') && inputs.source_ref || 'main'" in source
 
     print("verylogic-nextpnr workflow validation passed")
 
