@@ -68,7 +68,8 @@ jobs:
           - python: "3.13"
             tag: py313
     env:
-      VERYLOGIC_CONDA_OUTPUT: ${{ github.workspace }}/b
+      # Keep Rattler's nested build/host prefixes below cmd.exe's line limit.
+      VERYLOGIC_CONDA_OUTPUT: D:\b
 
     steps:
       - name: Check out verylogic-nextpnr
@@ -175,7 +176,8 @@ jobs:
     timeout-minutes: 60
     env:
       CHANNEL_ROOT: ${{ github.workspace }}/channel
-      VERYLOGIC_CONDA_OUTPUT: ${{ github.workspace }}/b
+      # Keep Rattler's nested build/host prefixes below cmd.exe's line limit.
+      VERYLOGIC_CONDA_OUTPUT: D:\b
 
     steps:
       - name: Check out channel
