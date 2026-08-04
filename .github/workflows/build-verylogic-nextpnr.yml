@@ -308,7 +308,7 @@ jobs:
           }
 
           $channelUri = ([System.Uri]$channelPath).AbsoluteUri
-          pixi run --environment conda-package rattler-build publish @packagePaths --to $channelUri
+          pixi run --manifest-path downstream/pixi.toml --environment conda-package rattler-build publish @packagePaths --to $channelUri
 
       - name: Commit channel index and package
         if: inputs.publish
