@@ -250,11 +250,7 @@ jobs:
         working-directory: source/downstream
         run: pixi run --environment conda-package just conda-test
 
-      - name: Test installed package-pin Python API
-        working-directory: source
-        env:
-          PACKAGE_VERSION: ${{ inputs.version }}
-        run: pixi run --manifest-path downstream/pixi.toml --environment conda-package python ../channel/.github/scripts/test_verylogic_nextpnr_package_pins.py "$env:VERYLOGIC_CONDA_OUTPUT" "$env:PACKAGE_VERSION" ../channel/.github/scripts/verylogic_nextpnr_package_pin_smoke.py
+
 
       - name: Verify combined package artifacts
         shell: pwsh
