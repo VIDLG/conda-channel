@@ -9,13 +9,16 @@ import sys
 from pathlib import Path
 
 
-EXPECTED_PYTHON_VERSIONS = {"3.12", "3.13"}
+EXPECTED_PYTHON_VERSIONS = {"3.13"}
 PACKAGE_PATTERN = re.compile(
     r"^verylogic-nextpnr-(?P<version>.+)-py(?P<python>\d+)h[0-9a-f]+_\d+\.conda$"
 )
 TARGET_COMMANDS = (
-    ("nextpnr-ice40", "--lp384", "--package", "qn32"),
-    ("nextpnr-ice40", "--up5k", "--package", "sg48"),
+    ("nextpnr-ice40", "--arch.type", "lp384", "--arch.package", "qn32"),
+    ("nextpnr-ice40", "--arch.type", "lp1k", "--arch.package", "tq144"),
+    ("nextpnr-ice40", "--arch.type", "u4k", "--arch.package", "sg48"),
+    ("nextpnr-ice40", "--arch.type", "up5k", "--arch.package", "sg48"),
+    ("nextpnr-ice40", "--arch.type", "hx8k", "--arch.package", "ct256"),
     ("nextpnr-himbaechel", "--device", "GW1N-LV1QN48C6/I5"),
     ("nextpnr-himbaechel", "--device", "GW5A-LV25LQ100C1/I0"),
     ("nextpnr-himbaechel", "--device", "xc7a100tcsg324-1"),

@@ -9,7 +9,7 @@ import yaml
 
 
 WORKFLOW = Path(".github/workflows/build-verylogic-nextpnr.yml")
-EXPECTED_VARIANTS = {("3.12", "py312"), ("3.13", "py313")}
+EXPECTED_VARIANTS = {("3.13", "py313")}
 
 
 def mapping(value: object, name: str) -> dict[str, object]:
