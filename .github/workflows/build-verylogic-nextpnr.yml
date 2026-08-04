@@ -63,8 +63,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - python: "3.12"
-            tag: py312
           - python: "3.13"
             tag: py313
     env:
@@ -146,26 +144,35 @@ jobs:
           VERYLOGIC_NEXTPNR_VERSION: ${{ inputs.version }}
         run: pixi run --manifest-path pixi.toml --environment conda-package just conda-build ${{ matrix.python }}
 
-      - name: Verify package artifact
+      - name: Verify package artifacts
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ inputs.version }}
           PYTHON_TAG: ${{ matrix.tag }}
         run: |
           $escapedVersion = [regex]::Escape($env:PACKAGE_VERSION)
-          $pattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
-          $packages = @(Get-ChildItem -Path $pattern | Where-Object {
+          $runtimePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
+          $runtime = @(Get-ChildItem -Path $runtimePattern | Where-Object {
             $_.Name -match "^verylogic-nextpnr-${escapedVersion}-$($env:PYTHON_TAG)h[0-9a-f]+_\d+\.conda$"
           })
-          if ($packages.Count -ne 1) {
-            throw "Expected one $env:PYTHON_TAG package, found $($packages.Count)"
+          if ($runtime.Count -ne 1) {
+            throw "Expected one $env:PYTHON_TAG runtime package, found $($runtime.Count)"
+          }
+          $inputsPattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-adapter-inputs-*.conda"
+          $inputs = @(Get-ChildItem -Path $inputsPattern | Where-Object {
+            $_.Name -match "^verylogic-fpga-adapter-inputs-${escapedVersion}-h[0-9a-f]+_\d+\.conda$"
+          })
+          if ($inputs.Count -ne 1) {
+            throw "Expected one adapter-inputs package, found $($inputs.Count)"
           }
 
       - name: Upload package variant
         uses: actions/upload-artifact@v7
         with:
           name: verylogic-nextpnr-${{ inputs.version }}-${{ matrix.tag }}-win-64
-          path: ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-nextpnr-*.conda
+          path: |
+            ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-nextpnr-*.conda
+            ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-fpga-adapter-inputs-*.conda
           if-no-files-found: error
           retention-days: 14
 
@@ -232,14 +239,14 @@ jobs:
           }
           New-Item -ItemType Directory -Path "$env:VERYLOGIC_CONDA_OUTPUT/win-64" | Out-Null
 
-      - name: Download package variants
+      - name: Download package
         uses: actions/download-artifact@v8
         with:
           pattern: verylogic-nextpnr-${{ inputs.version }}-*-win-64
           path: ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64
           merge-multiple: true
 
-      - name: Test installed conda package variants
+      - name: Test installed conda package
         working-directory: source/downstream
         run: pixi run --environment conda-package just conda-test
 
@@ -254,26 +261,23 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ inputs.version }}
         run: |
-          $packagePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
-          $packages = @(Get-ChildItem -Path $packagePattern)
-          if ($packages.Count -ne 2) {
-            throw "Expected two verylogic-nextpnr Python variants, found $($packages.Count)"
-          }
           $escapedVersion = [regex]::Escape($env:PACKAGE_VERSION)
-          foreach ($pythonTag in @("py312", "py313")) {
-            $matches = @($packages | Where-Object {
-              $_.Name -match "^verylogic-nextpnr-${escapedVersion}-${pythonTag}h[0-9a-f]+_\d+\.conda$"
-            })
-            if ($matches.Count -ne 1) {
-              throw "Expected exactly one verylogic-nextpnr $env:PACKAGE_VERSION $pythonTag package, found $($matches.Count)"
-            }
+          $runtime = @(Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"))
+          $inputs = @(Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-adapter-inputs-*.conda"))
+          if ($runtime.Count -ne 1 -or $runtime[0].Name -notmatch "^verylogic-nextpnr-${escapedVersion}-py313h[0-9a-f]+_\d+\.conda$") {
+            throw "Expected one verylogic-nextpnr $env:PACKAGE_VERSION py313 package"
+          }
+          if ($inputs.Count -ne 1 -or $inputs[0].Name -notmatch "^verylogic-fpga-adapter-inputs-${escapedVersion}-h[0-9a-f]+_\d+\.conda$") {
+            throw "Expected one verylogic-fpga-adapter-inputs $env:PACKAGE_VERSION package"
           }
 
       - name: Upload tested package set
         uses: actions/upload-artifact@v7
         with:
           name: verylogic-nextpnr-${{ inputs.version }}-win-64
-          path: ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-nextpnr-*.conda
+          path: |
+            ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-nextpnr-*.conda
+            ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-fpga-adapter-inputs-*.conda
           if-no-files-found: error
           retention-days: 14
 
@@ -282,8 +286,10 @@ jobs:
         shell: pwsh
         working-directory: source
         run: |
-          $packagePattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"
-          $packages = @(Get-ChildItem -Path $packagePattern)
+          $packages = @(
+            Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda")
+            Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-adapter-inputs-*.conda")
+          )
 
           $channelPath = (Resolve-Path $env:CHANNEL_ROOT).Path
           $packagePaths = @()
@@ -301,7 +307,7 @@ jobs:
             $packagePaths += $package.FullName
           }
           if ($packagePaths.Count -eq 0) {
-            Write-Host "Channel already contains both identical packages."
+            Write-Host "Channel already contains the identical package."
             exit 0
           }
 
@@ -324,5 +330,5 @@ jobs:
             exit 0
           }
           $shortCommit = $env:SOURCE_COMMIT.Substring(0, 12)
-          git commit -m "Publish verylogic-nextpnr $env:PACKAGE_VERSION ($shortCommit)"
+          git commit -m "Publish verylogic-nextpnr packages $env:PACKAGE_VERSION ($shortCommit)"
           git push
