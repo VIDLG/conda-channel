@@ -158,12 +158,12 @@ jobs:
           if ($runtime.Count -ne 1) {
             throw "Expected one $env:PYTHON_TAG runtime package, found $($runtime.Count)"
           }
-          $inputsPattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-adapter-inputs-*.conda"
+          $inputsPattern = Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-upstream-databases-*.conda"
           $inputs = @(Get-ChildItem -Path $inputsPattern | Where-Object {
-            $_.Name -match "^verylogic-fpga-adapter-inputs-${escapedVersion}-h[0-9a-f]+_\d+\.conda$"
+            $_.Name -match "^verylogic-fpga-upstream-databases-${escapedVersion}-h[0-9a-f]+_\d+\.conda$"
           })
           if ($inputs.Count -ne 1) {
-            throw "Expected one adapter-inputs package, found $($inputs.Count)"
+            throw "Expected one upstream-databases package, found $($inputs.Count)"
           }
 
       - name: Upload package variant
@@ -172,7 +172,7 @@ jobs:
           name: verylogic-nextpnr-${{ inputs.version }}-${{ matrix.tag }}-win-64
           path: |
             ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-nextpnr-*.conda
-            ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-fpga-adapter-inputs-*.conda
+            ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-fpga-upstream-databases-*.conda
           if-no-files-found: error
           retention-days: 14
 
@@ -259,12 +259,12 @@ jobs:
         run: |
           $escapedVersion = [regex]::Escape($env:PACKAGE_VERSION)
           $runtime = @(Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda"))
-          $inputs = @(Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-adapter-inputs-*.conda"))
+          $inputs = @(Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-upstream-databases-*.conda"))
           if ($runtime.Count -ne 1 -or $runtime[0].Name -notmatch "^verylogic-nextpnr-${escapedVersion}-py313h[0-9a-f]+_\d+\.conda$") {
             throw "Expected one verylogic-nextpnr $env:PACKAGE_VERSION py313 package"
           }
-          if ($inputs.Count -ne 1 -or $inputs[0].Name -notmatch "^verylogic-fpga-adapter-inputs-${escapedVersion}-h[0-9a-f]+_\d+\.conda$") {
-            throw "Expected one verylogic-fpga-adapter-inputs $env:PACKAGE_VERSION package"
+          if ($inputs.Count -ne 1 -or $inputs[0].Name -notmatch "^verylogic-fpga-upstream-databases-${escapedVersion}-h[0-9a-f]+_\d+\.conda$") {
+            throw "Expected one verylogic-fpga-upstream-databases $env:PACKAGE_VERSION package"
           }
 
       - name: Upload tested package set
@@ -273,7 +273,7 @@ jobs:
           name: verylogic-nextpnr-${{ inputs.version }}-win-64
           path: |
             ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-nextpnr-*.conda
-            ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-fpga-adapter-inputs-*.conda
+            ${{ env.VERYLOGIC_CONDA_OUTPUT }}/win-64/verylogic-fpga-upstream-databases-*.conda
           if-no-files-found: error
           retention-days: 14
 
@@ -284,7 +284,7 @@ jobs:
         run: |
           $packages = @(
             Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-nextpnr-*.conda")
-            Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-adapter-inputs-*.conda")
+            Get-ChildItem -Path (Join-Path $env:VERYLOGIC_CONDA_OUTPUT "win-64/verylogic-fpga-upstream-databases-*.conda")
           )
 
           $channelPath = (Resolve-Path $env:CHANNEL_ROOT).Path
