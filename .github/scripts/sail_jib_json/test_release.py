@@ -33,7 +33,7 @@ class PackageSetTests(unittest.TestCase):
             package = root / subdir / f"sail-jib-json-{version}-h{index:08x}_0.conda"
             package.parent.mkdir(parents=True)
             package.write_bytes(f"package-{subdir}".encode())
-            packages[subdir] = package
+            packages[subdir] = package.resolve()
         return packages
 
     def test_requires_exact_windows_inventory(self) -> None:
