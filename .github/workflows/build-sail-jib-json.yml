@@ -26,7 +26,7 @@ concurrency:
 jobs:
   validate:
     name: Validate workflow
-    runs-on: ubuntu-24.04
+    runs-on: windows-2025
     timeout-minutes: 10
     steps:
       - name: Check out channel

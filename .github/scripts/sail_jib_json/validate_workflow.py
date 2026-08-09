@@ -22,6 +22,9 @@ def main() -> None:
     jobs = mapping(document.get("jobs"), "jobs")
     assert set(jobs) == {"validate", "build", "test-and-publish"}
 
+    validate = mapping(jobs["validate"], "validate job")
+    assert validate.get("runs-on") == "windows-2025"
+
     build = mapping(jobs["build"], "build job")
     assert build.get("needs") == "validate"
     assert build.get("runs-on") == "windows-2025"
