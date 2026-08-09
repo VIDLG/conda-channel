@@ -1,0 +1,191 @@
+name: Build sail-jib-json
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Version tag or full 40-character source commit SHA
+        required: true
+      version:
+        description: Conda package version
+        required: true
+        default: 0.1.0
+      publish:
+        description: Publish the tested packages into the static channel
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-sail-jib-json
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out channel
+        uses: actions/checkout@v5
+
+      - name: Set up validation environment
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          manifest-path: pixi.toml
+          environments: default
+          frozen: true
+          cache: true
+
+      - name: Validate publishing workflow
+        run: pixi run python .github/scripts/sail_jib_json/validate_workflow.py
+
+      - name: Test channel release policy
+        run: pixi run python -m unittest discover -s .github/scripts -p 'test_release.py'
+
+      - name: Validate requested release
+        run: >-
+          pixi run python .github/scripts/sail_jib_json/release.py validate-request
+          --source-ref "${{ inputs.source_ref }}"
+          --version "${{ inputs.version }}"
+          --publish "${{ inputs.publish }}"
+
+  build:
+    name: Build (windows-x86_64)
+    needs: validate
+    runs-on: windows-2025
+    timeout-minutes: 120
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out channel policy
+        uses: actions/checkout@v5
+        with:
+          path: channel
+
+      - name: Check out immutable sail-jib-json source
+        uses: actions/checkout@v5
+        with:
+          repository: VIDLG/sail-jib-json
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+          submodules: recursive
+          path: source
+
+      - name: Set up locked producer environment
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          manifest-path: source/pixi.toml
+          environments: default
+          frozen: true
+          cache: true
+
+      - name: Validate immutable source
+        run: >-
+          pixi run --manifest-path source/pixi.toml python
+          channel/.github/scripts/sail_jib_json/release.py validate-source
+          --repository source
+          --source-ref "${{ inputs.source_ref }}"
+          --version "${{ inputs.version }}"
+
+      - name: Build and test Conda package
+        working-directory: source
+        env:
+          SAIL_JIB_JSON_VERSION: ${{ inputs.version }}
+        run: pixi run conda-package
+
+      - name: Upload tested host package
+        uses: actions/upload-artifact@v7
+        with:
+          name: sail-jib-json-${{ inputs.version }}-win-64
+          path: source/.build/conda/win-64/sail-jib-json-${{ inputs.version }}-*.conda
+          if-no-files-found: error
+          retention-days: 14
+
+  test-and-publish:
+    name: Verify and publish package set
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      CHANNEL_ROOT: ${{ github.workspace }}/channel
+      PACKAGE_ROOT: ${{ github.workspace }}/packages
+
+    steps:
+      - name: Check out channel
+        uses: actions/checkout@v5
+        with:
+          path: channel
+
+      - name: Check out immutable sail-jib-json source
+        uses: actions/checkout@v5
+        with:
+          repository: VIDLG/sail-jib-json
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+          path: source
+
+      - name: Set up locked publishing environment
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          manifest-path: channel/pixi.toml
+          environments: default
+          frozen: true
+          cache: true
+
+      - name: Validate immutable source
+        shell: bash
+        run: >-
+          pixi run --manifest-path channel/pixi.toml python
+          channel/.github/scripts/sail_jib_json/release.py validate-source
+          --repository source
+          --source-ref "${{ inputs.source_ref }}"
+          --version "${{ inputs.version }}"
+          --github-env "$GITHUB_ENV"
+
+      - name: Download win-64 package
+        uses: actions/download-artifact@v8
+        with:
+          name: sail-jib-json-${{ inputs.version }}-win-64
+          path: packages/win-64
+
+
+      - name: Verify complete package set
+        run: >-
+          pixi run --manifest-path channel/pixi.toml python
+          channel/.github/scripts/sail_jib_json/release.py verify-packages
+          --package-root packages
+          --version "${{ inputs.version }}"
+
+      - name: Upload complete tested package set
+        uses: actions/upload-artifact@v7
+        with:
+          name: sail-jib-json-${{ inputs.version }}-conda
+          path: packages/**/*.conda
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish packages into static channel
+        if: inputs.publish
+        run: >-
+          pixi run --manifest-path channel/pixi.toml python
+          channel/.github/scripts/sail_jib_json/release.py publish-packages
+          --package-root packages
+          --channel-root channel
+          --version "${{ inputs.version }}"
+
+      - name: Commit channel indexes and packages
+        if: inputs.publish
+        shell: bash
+        run: >-
+          pixi run --manifest-path channel/pixi.toml python
+          channel/.github/scripts/sail_jib_json/release.py commit-channel
+          --channel-root channel
+          --version "${{ inputs.version }}"
+          --source-commit "$SOURCE_COMMIT"

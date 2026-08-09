@@ -51,7 +51,7 @@ def find_variants(output_dir: Path, expected_version: str) -> dict[str, Path]:
 def main() -> None:
     if len(sys.argv) != 4:
         raise SystemExit(
-            "usage: test_verylogic_nextpnr_package_pins.py OUTPUT_DIR PACKAGE_VERSION SMOKE_SCRIPT"
+            "usage: test_package_pins.py OUTPUT_DIR PACKAGE_VERSION SMOKE_SCRIPT"
         )
 
     output_dir = Path(sys.argv[1]).resolve()

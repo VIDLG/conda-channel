@@ -6,3 +6,4 @@ platforms = ["win-64"]
 [dependencies]
 python = ">=3.12,<3.14"
 pyyaml = ">=6,<7"
+rattler-build = "0.57.*"

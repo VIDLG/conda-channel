@@ -41,7 +41,7 @@ jobs:
           cache: true
 
       - name: Validate publishing workflow
-        run: pixi run python .github/scripts/validate_verylogic_nextpnr_workflow.py
+        run: pixi run python .github/scripts/verylogic_nextpnr/validate_workflow.py
 
       - name: Validate requested release
         shell: pwsh
@@ -250,7 +250,17 @@ jobs:
         working-directory: source/downstream
         run: pixi run --environment conda-package just conda-test
 
-
+      - name: Run channel-owned package-pin smoke
+        shell: pwsh
+        working-directory: source/downstream
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+        run: >-
+          pixi run --environment conda-package python
+          "$env:CHANNEL_ROOT/.github/scripts/verylogic_nextpnr/test_package_pins.py"
+          "$env:VERYLOGIC_CONDA_OUTPUT"
+          "$env:PACKAGE_VERSION"
+          "$env:CHANNEL_ROOT/.github/scripts/verylogic_nextpnr/package_pin_smoke.py"
 
       - name: Verify combined package artifacts
         shell: pwsh
